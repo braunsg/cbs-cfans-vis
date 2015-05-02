@@ -1,0 +1,445 @@
+		<style>
+			circle.expertNode {
+				stroke: #fff;
+				stroke-width: 1px;
+				stroke-opacity: 0.6;
+			}
+
+			path.collabLink {
+				fill: none;
+			}
+
+
+			.axis path, .axis line {
+				fill: none;
+				stroke: black;
+				shape-rendering: crispEdges;
+			}
+
+			.nameLabels {
+				font-family: sans-serif;
+				font-size: 8px;
+				font-weight: 100;
+				
+			}
+			
+/* 
+			body {
+				overflow: hidden;
+			}
+ */
+
+			.plotLabel {
+				font-family: Georgia, serif;
+				fill: black;
+				stroke: none;
+			}
+			
+
+			
+		</style>
+
+
+        <svg id="canvas">
+        </svg>
+
+		<script type="text/javascript">
+			var sliceAmount = "all";
+			sliceAmount = 100;
+			sliceAmount = $("#sliceAmount").val();
+
+			var initialStrokeOpacity = 0.25;
+			var bottom_padding = 25;
+			var left_padding = 25;
+			var padding = 6;
+
+			var radiusScale = d3.scale.linear().domain([1,400]).range([0.5,0.4]);
+			if(sliceAmount !== "all") {
+				var scaleFactor = radiusScale(sliceAmount);
+			} else {
+				var scaleFactor = 0.4;
+			}
+
+			d3.json("inc/coauthorData.json", function(json) { //coauthorData.json
+
+				var updatedLinks = [];
+				var updatedNodes = [];
+				var opacityVals = d3.scale.linear()
+					.domain([0, json.nodes.length-1])
+					.range([0.2, 1.0]);
+				var linkOpacityVals = d3.scale.linear()
+					.domain
+
+				json.links.forEach(function(l) { 
+
+					var sourceNode = json.nodes.filter(function(n) { return n.expertId === l.source; })[0],
+						targetNode = json.nodes.filter(function(n) { return n.expertId === l.target; })[0],
+						linkType = l.collabType;
+						linkStrength = l.linkStrength;
+						collabs = l.collabs;
+
+					updatedLinks.push({source: sourceNode, target: targetNode, collabType: linkType, linkWeight: linkStrength, collabPubs: collabs});
+				});
+
+				json.nodes.forEach(function(n, i) {
+					var nodeSize_noCross = 0;
+					var nodeSize_cross = 0;
+					var collabLinks = [];
+					updatedLinks.forEach(function(l) { 
+						if(l.source['expertId'] == n.expertId || l.target['expertId'] == n.expertId) {
+							collabLinks.push(l);
+						}
+					});
+	
+					if(collabLinks.length > 0) {
+						collabLinks.forEach(function(linkCheck) {
+							switch(linkCheck.collabType) {
+								case 0:
+									nodeSize_noCross += 1;
+									break;
+								default:
+									nodeSize_cross +=1; //4
+							}	
+						});
+					}
+					var thisNode = n;
+					thisNode.r = Math.sqrt(nodeSize_noCross + nodeSize_cross)*scaleFactor;
+					thisNode.r = (nodeSize_noCross + nodeSize_cross)*scaleFactor;
+					thisNode.c_degree = nodeSize_cross;
+					thisNode.nc_degree = nodeSize_noCross;
+					updatedNodes.push(thisNode);
+				});
+				
+
+				updatedNodes.sort(function(a,b) {
+					if (a.r > b.r) {
+						return 1;
+					} else if (a.r < b.r) {
+						return -1;
+					} else { 
+						return 0; 
+					}
+				});				
+				
+				maxSlice = updatedNodes.length;
+			
+			
+				if(sliceAmount != "all") {
+					updatedNodes = updatedNodes.slice(-1*(sliceAmount)-1,-1);
+					var updatedNodeIndex = [];
+					updatedNodes.forEach(function(n) {
+						updatedNodeIndex.push(n.expertId);
+					});				
+					updatedLinks = updatedLinks.filter(function(l) { return updatedNodeIndex.indexOf(l.target.expertId) != -1 && updatedNodeIndex.indexOf(l.source.expertId) != -1; });
+
+				}				
+				
+				updatedNodes.sort(function(a,b) {
+					if(a.affiliation.length > b.affiliation.length) {
+						return 1;
+					} else if(a.affiliation.length < b.affiliation.length) {
+						return -1;
+					}
+					
+					if(a.affiliation.length == b.affiliation.length) {
+						if(a.affiliation[0] == 'cbs') {
+							return 1;
+						} else {
+							return -1;
+						}
+					}					
+				});
+						
+								
+				var arcRadius = 250,
+					rightPadding = 100,
+					width = arcRadius*2 + 200 + rightPadding,
+					height = width - rightPadding,
+					nodeRadius = 2,
+					textPadding = nodeRadius + 4,
+					translate_x = (width - rightPadding)/2;
+
+
+				var angle = d3.scale.linear()
+					.domain([0, updatedNodes.length])
+					.range([0, 2 * Math.PI]);
+
+				var line = d3.svg.line.radial()
+					.interpolate("basis-closed")
+					.radius(arcRadius)
+					.angle(function(d, i) { return angle(i); });
+
+				var svg = d3.select("#canvas").append("svg:svg")
+					.datum(updatedNodes)
+		            .attr("viewBox", "-350" + " " + "-350" + " " + width + " " + width)
+		            .attr("preserveAspectRatio", "xMinYMin meet")
+ 					.attr("fill", "none")
+ 					.attr("stroke", "black");
+	
+				var linePath = svg.append("path")
+					.attr("class", "line")
+					.attr("d", line);
+
+				var nodes = svg.selectAll(".node")
+					.data(updatedNodes)
+					.enter().append("g");
+	
+				nodes.append("circle")
+					.attr("class", "node")
+					.attr("cx", function(d, i) { return (arcRadius*Math.cos(angle(i))); })
+					.attr("cy", function(d, i) { return (arcRadius*Math.sin(angle(i))); })
+					.attr("r", nodeRadius)
+					.style("fill", function(d) { return nodeColor(d); });
+
+				var nodeIndexArray = [];
+				nodes[0].forEach(function(n, i) {
+					var thisCx = n.firstChild.cx.baseVal.value;
+					var thisCy = n.firstChild.cy.baseVal.value;
+					var thisExpert = n.__data__.expertId;
+					nodeIndexArray[thisExpert] = {index: i, cx: thisCx, cy: thisCy};
+					updatedLinks.forEach(function(l) {
+						if(l.source.expertId == thisExpert) {
+							l.source['cx'] = thisCx;
+							l.source['cy'] = thisCy;
+						}
+						if(l.target.expertId == thisExpert) {
+							l.target['cx'] = thisCx;
+							l.target['cy'] = thisCy;		
+						}
+	
+					});
+				});
+
+				var nodeText = nodes.append("text")
+					.attr("class", "nameLabels")
+					.attr("dx", arcRadius + 6)
+					.attr("dy", 3)
+					.attr("transform", function(d, i) { return "rotate(" + (angle(i)*(180/Math.PI)) + ")"; })
+					.text(function(n) { return n.firstName + " " + n.lastName;} )
+					.attr("stroke", function(n) { return nodeColor(n); })
+					.on("mouseover", function(d) { mouseoverFunct(d, this); })
+					.on("mouseout",  function(d) { mouseoutFunct(d, this); })
+					.style("cursor", "default");
+
+				var bundleLine = d3.svg.line.radial()
+					.interpolate("bundle")
+					.tension(0)
+					.radius(function(d) { return d.target.cy; })
+					.angle(function(d) { return d.target.cx / 180 * Math.PI; });
+	
+				var links = svg.append("g").selectAll("line.link")
+					.data(updatedLinks)
+					.enter().append("path")
+					.attr("class", "collabLink")
+					.style("stroke", function(d) { return linkColor(d); })
+					.style("stroke-width", 1)
+					.style("stroke-opacity", 0.4);
+
+				links.attr("d", function(d,i) {
+
+					var dx = d.target.cx - d.source.cx,
+						dy = d.target.cy - d.source.cy,
+						dr = Math.sqrt(dx * dx + dy * dy);
+
+					var sourceRad = angle(nodeIndexArray[d.source.expertId].index),
+						targetRad = angle(nodeIndexArray[d.target.expertId].index),
+						arcSweep;
+
+
+						if(sourceRad < Math.PI) {
+							if(targetRad < sourceRad || targetRad > sourceRad + Math.PI) {
+								arcSweep = 1;
+							} else {
+								arcSweep = 0;
+							}
+		
+						} else {
+							if((targetRad > sourceRad - Math.PI) && targetRad < sourceRad) {
+								arcSweep = 1;
+							} else {
+								arcSweep = 0;
+							}
+		
+						}
+
+
+					return "M" + 
+						d.source.cx + "," + 
+						d.source.cy + "A" + 
+						dr + "," + dr + " 0,0," + arcSweep + 
+						d.target.cx + "," + 
+						d.target.cy;
+				});
+
+/////////////////////////////
+// Create Key
+/////////////////////////////
+
+
+				var keyBox = svg.append("rect")
+					.attr("x", arcRadius+35)
+					.attr("y", -arcRadius - 95)
+					.attr("width",160)
+					.attr("height",110)
+					.attr("fill", "none")
+					.attr("stroke","black");				
+
+				var keyLabel = svg.append("text")
+					.attr("class", "plotLabel")
+					.attr("x", arcRadius + 120)  
+					.attr("y", -arcRadius - 70)
+					.attr("text-anchor", "middle") 
+					.style("font-size", "18px") 
+					.style("text-decoration", "none")
+					.style("font-weight","bold")
+					.text("Key");
+
+				var keyLabel_CBS = svg.append("text")
+					.attr("class", "plotLabel")
+					.attr("x", arcRadius + 70)  
+					.attr("y", -arcRadius - 45)
+					.attr("text-anchor", "start") 
+					.style("font-size", "14px") 
+					.style("text-decoration", "none")
+					.text("CBS");
+
+				var keyColor_CBS = svg.append("rect")
+					.attr("x", arcRadius + 50)
+					.attr("y",-arcRadius - 55)
+					.attr("width",10)
+					.attr("height",10)
+					.attr("fill", "blue")
+					.attr("stroke","none");				
+
+				var keyLabel_CFANS = svg.append("text")
+					.attr("class", "plotLabel")
+					.attr("x", arcRadius + 70)  
+					.attr("y", -arcRadius - 25)
+					.attr("text-anchor", "start") 
+					.style("font-size", "14px") 
+					.style("text-decoration", "none")
+					.text("CFANS");
+
+				var keyColor_CBS = svg.append("rect")
+					.attr("x", arcRadius + 50)
+					.attr("y",-arcRadius - 35)
+					.attr("width",10)
+					.attr("height",10)
+					.attr("fill", "red")
+					.attr("stroke","none");
+									
+				var keyLabel_dual = svg.append("text")
+					.attr("class", "plotLabel")
+					.attr("x", arcRadius + 70)  
+					.attr("y", -arcRadius - 5)
+					.attr("text-anchor", "start") 
+					.style("font-size", "14px") 
+					.style("text-decoration", "none")
+					.text("Dual CBS/CFANS");
+
+				var keyColor_CBS = svg.append("rect")
+					.attr("x", arcRadius + 50)
+					.attr("y",-arcRadius - 15)
+					.attr("width",10)
+					.attr("height",10)
+					.attr("fill", "green")
+					.attr("stroke","none");			
+					
+
+/////////////////////////////
+// Define Functions
+/////////////////////////////
+
+				function mouseoverFunct(thisData, thisElement) {
+					var currentNode = d3.select(thisElement);
+					var resetVals = thisElement.style;
+					currentNode.style("opacity", 1.0);
+					nodeText.style("stroke-opacity", 0.4).style("stroke", "gray");
+					var sourceId = thisData.expertId;
+					var connectedLinks = links.filter(function(l) { return l.source['expertId'] == sourceId || l.target['expertId'] == sourceId; });
+					links.style("stroke-opacity", 0.8).style("stroke", "#E3E3E3");
+					connectedLinks[0].forEach(function(d) { 
+
+						var thisLink = d3.select(d);
+
+						if(thisLink.data()[0].collabType == 0) {
+							thisLink.style("stroke", "black").style("stroke-opacity", 0.7); 
+						} else {
+							thisLink.style("stroke", "red").style("stroke-opacity", 0.8); 
+						}
+
+						var linksourceId = thisLink.data()[0].source.expertId;
+						var linktargetId = thisLink.data()[0].target.expertId;
+						var targetNode = d3.select(nodeText.filter(function(d) { return (d.expertId) == linktargetId; })[0][0]);
+						targetNode.style("stroke-opacity", 1).style("stroke", function(d) { return nodeColor(d); });
+						var sourceNode = d3.select(nodeText.filter(function(d) { return (d.expertId) == linksourceId; })[0][0]);
+						sourceNode.style("stroke-opacity", 1).style("stroke", function(d) { return nodeColor(d); });
+
+					});
+				}
+		
+				function mouseoutFunct(thisData, thisElement) {
+					nodeText.style("stroke-opacity", 1);
+					nodeText.style("stroke", function(d) { return nodeColor(d); });
+					links.style("stroke", function(d) { return linkColor(d); });
+		
+				}
+
+
+
+
+			function linkColor(thisLink) {
+				switch(thisLink.collabType) {
+					case 0:
+						return "#a9a9a9";
+						break;
+					case 1:
+						return "blue";
+						break;
+					case 2:
+						return "blue";
+						break;
+				}
+			}
+
+
+
+				
+			function nodeColor(thisNode) {
+
+				var titleColors = {
+					"red": {"Professor": "#ff0000", "Associate Professor": "#ff6600", "Assistant Professor": "#ff9900", "Other": "#ffcc00"}, 
+					"blue": {"Professor": "#0000ff", "Associate Professor": "#0066ff", "Assistant Professor": "#0099ff", "Other": "#00ccff"}, 
+					"green": {"Professor": "#006600", "Associate Professor": "#009900", "Assistant Professor": "#00cc00", "Other": "#00ff00"}
+					}
+
+
+				if(thisNode.affiliation.length == 1) {
+					switch (thisNode.affiliation[0])
+						{
+						case "cbs":
+							return titleColors["blue"]["Professor"];
+							break;
+						case "cfans":
+							return titleColors["red"]["Professor"];
+							break;
+						}
+				} else {
+					return titleColors["green"]["Professor"];
+				}
+			}
+			// Change slider max
+			
+					$(document).ready(function() {
+						$("input#slider").prop("max",maxSlice);
+						sliderChange();
+					});		
+
+	
+				
+			});
+
+
+
+
+		</script>

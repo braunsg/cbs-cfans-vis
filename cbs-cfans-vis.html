@@ -1,0 +1,277 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"
+>
+<html>
+    <head>
+	    <meta http-equiv="Cache-control" content="no-cache">
+        <meta http-equiv="content-type" content="text/html;charset=utf-8">
+        <title>CBS/CFANS Collaborations</title>
+		<script type="text/javascript" src="inc/d3.v3.js"></script>
+		<script src="inc/jquery-1.10.2.min.js"></script>
+		
+		
+		<script type="text/javascript">
+		
+			var vizSetting;
+			var sliderInitialized = 0;
+			$.ajaxSetup ({
+				// Disable caching of AJAX responses
+				cache: false
+			});
+			var maxSlice;
+			function sliderChange() {
+				$("input#sliceAmount").prop("value", $("input#slider").prop("value"));
+			}
+			
+		
+			function colorPicker(thisNode) {
+				if(thisNode.affiliation.length == 1) {
+					switch (thisNode.affiliation[0])
+						{
+						case "cbs":
+							return titleColors["blue"]["Professor"];						
+							break;
+						case "cfans":
+							return titleColors["red"]["Professor"];
+							break;
+						}
+				} else {
+					return titleColors["green"]["Professor"];
+				}
+			}			
+			
+			function searchNode() {
+				var searchName = $("input#searchBox").prop("value");
+				var searchTerm = searchName.toLowerCase();
+				if(vizSetting === "bundle") {
+					d3.selectAll("text").style("stroke-opacity", 0.4).style("stroke", "gray");
+					d3.selectAll("circle.node")[0].forEach(function(d) { console.log(d); });
+					d3.selectAll("text").filter(function(n) { return n.firstName.toLowerCase().indexOf(searchTerm) == -1 && n.lastName.toLowerCase().indexOf(searchTerm) == -1; }).style("fill-opacity", 0.2);				
+				} else {
+					d3.selectAll('circle.expertNode').style("fill", function(d) { return colorPicker(d); })
+						.style("fill-opacity", 1);
+					d3.selectAll('.collabLink').style("display","none");
+					d3.selectAll('circle.expertNode').filter(function(n) { return n.firstName !== "CBS" && n.firstName !== "CFANS"; }).filter(function(n) { return n.firstName.toLowerCase().indexOf(searchTerm) == -1 && n.lastName.toLowerCase().indexOf(searchTerm) == -1; }).style("fill-opacity", 0.2);
+				}
+			}
+			function changeViz(vizType) {
+				vizSetting = vizType;
+				var vizSrc;
+				if(sliderInitialized == 0) {
+					$("input#slider").prop("value",100);
+					sliderInitialized = 1;
+				}
+				
+				switch(vizType) {
+					case "network":
+						vizSrc = "inc/network_reduced.html";
+// 						vizSrc = "inc/network.html";
+						break;
+					case "hierarchical":
+						vizSrc = "inc/hierarchical_network.html";
+						break;
+					case "conceptNetwork":
+						vizSrc = "inc/hierarchical_concepts.html";
+						break;
+					case "bundle":
+						vizSrc = "inc/bundle.html";
+						break;
+					case "timePlot":
+						vizSrc = "inc/timePlot.html";
+						break;
+				}
+				$("#viz").load(vizSrc);
+												
+				if(vizType === "network" || vizType === "bundle" || vizType === "hierarchical" || vizType === "conceptNetwork") {
+						if(document.getElementById('sliderDiv').style.display == "") {
+							document.getElementById('sliderDiv').style.display = "block";
+							document.getElementById('sliceAmount').value = document.getElementById('slider').value;
+						}
+
+				}
+ 			}
+		</script>
+		<style>
+			body, html {
+				height: 100%;
+				overflow: hidden;
+/* 				width: 100%; */
+			}
+			#canvas {
+				width: 100%;
+				height: 90%;
+			}
+
+			#header {
+				font-family: Georgia, serif;
+				font-size: 28px;
+				text-align: left;
+				color: teal;
+				border-bottom: solid 3px teal;
+				padding-bottom: 4px;
+				margin-bottom: 15px;
+			}
+			
+			#downloadHandout {
+				margin-top: 2px;
+				margin-bottom: 10px;
+				width: 100%;
+				text-align: center;
+			}
+			
+			#searchDesc {
+				margin-top: 2px;
+				margin-bottom: 10px;
+				width: 100%;
+				color: #000000;
+				font-size: 11px;
+				text-align: left;
+			}			
+			#downloadHandout a:link, #downloadHandout a:hover, #downloadHandout a:visited {
+				text-decoration: underline;
+				color: steelblue;
+				font-size: 10px;
+				text-align: center;
+			}
+			#linkTitle {
+				font-family: Georgia, serif;
+				font-size: 14px;
+				text-align: left;
+				color: steelblue;
+				margin-bottom: 8px;	
+			}
+			
+			#linkTitle a:link, a:visited {
+				text-decoration: none;
+				color: steelblue;
+			}
+			
+			#linkTitle a:hover {
+				cursor: pointer;
+				color: #1a5671;
+			}
+
+			#linkDesc {
+				padding-left: 20px;
+				font-family: Georgia, serif;
+				font-size: 12px;
+				color: gray;
+				margin-bottom: 24px;
+				text-align: justify;
+			}
+			
+			#container {
+				width: 100%;
+				height: 100%;
+			}
+			#panel {
+				background-color: #e2f3fb;
+				float: left;
+				width: 18%;
+				height: 75%;
+				padding-left: 1%;
+				padding-right: 1%;
+				padding-top: 1%;
+				padding-bottom: 25%;
+				overflow-y: auto;
+			}
+			
+			#viz {
+				float: right;
+				width: 79%;
+				height:100%;
+				font-family: Georgia, serif;
+				font-size: 14px;
+				color: gray;
+				text-align: justify;
+				padding-top: 1%;
+				padding-left: 1%;				
+			}
+			
+			#sliderDiv {
+				font-family: Georgia, serif;
+				color: steelblue;
+				border-top: 3px solid white;
+				padding-top: 5px;
+				display: none;
+			}
+			
+			#sliderDiv .slider {
+				margin-top: 10px;
+				width: 70%;
+				float:left;
+			}
+			
+			#sliderDiv .sliceAmount {
+				margin-top: 8px;
+				margin-left: 12px;
+				width: 10%;
+				display: block-inline;
+				float:left;
+			}
+		</style>
+	</head>
+	<body>
+
+
+	<div id="header">Visualizing Collaborations between CBS and CFANS</div>
+	<div id="container">
+		<div id="panel">
+			<div id="linkTitle">
+				<a onclick="javascript:changeViz('network');return false;" />Network Degree</a><br>
+
+			</div>
+			<div id="linkDesc">
+				Generates a network diagram showing collaborative connections between researchers in CBS and CFANS on a coordinate grid based on degree of cross-college and within-college collaboration
+			</div>
+			<div id="linkTitle">
+				<a onclick="javascript:changeViz('hierarchical');return false;" />Hierarchical Network</a><br>
+
+			</div>
+			<div id="linkDesc">
+				Similar to the network degree visualization, but researchers are clustered according to college affiliation.
+			</div>
+
+			<div id="linkTitle">
+				<a onclick="javascript:changeViz('conceptNetwork');return false;" />Hierarchical Concept Network</a><br>
+
+			</div>
+			<div id="linkDesc">
+				Shows connections between researchers based on shared concept terms where researchers are clustered according to college affiliation.
+			</div>
+
+			<div id="linkTitle">	
+				<a onclick="javascript:changeViz('bundle');return false;" />Bundle</a><br>
+
+			</div>
+			<div id="linkDesc">
+				Generates a network diagram showing collaborative connections between researchers in CBS and CFANS in a radial distribution with researchers grouped according to college affiliation
+			</div>
+			<div id="linkTitle">
+				<a onclick="javascript:changeViz('timePlot');return false;" />Collaborations Time Plot</a><br>
+
+			</div>
+			<div id="linkDesc">
+				Generates a bar graph depicting how the number of publications involving collaboration between CBS and CFANS has changed over time on a yearly and cumulative basis
+			</div>
+
+
+
+			<div id="sliderDiv">
+				Number of researchers to view
+				<input type="range" id="slider" class="slider" min="1" max="597" onchange="sliderChange();">
+				<input type="text" id="sliceAmount" class="sliceAmount">
+				<br>
+				<br>
+				<br>
+				<input type="text" id="searchBox"><input type="button" id="search" value="Search" onclick="javascript:searchNode();"/><br>
+				<div id="searchDesc">Search by first or last name only</div>
+			</div>
+
+		</div>
+		<div id="viz">
+			Select a visualization from the panel on the left.
+		</div>
+	</div>
+	</body>
+</html>

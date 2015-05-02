@@ -1,0 +1,390 @@
+		<style>
+			/* tell the SVG path to be a thin blue line without any area fill */
+			path {
+				stroke: steelblue;
+				stroke-width: 1;
+				fill: none;
+			}
+			
+			.axis {
+			  shape-rendering: crispEdges;
+			}
+
+			.x.axis line {
+			  stroke: lightgrey;
+			}
+
+			.x.axis .minor {
+			  stroke-opacity: .5;
+			}
+
+			.x.axis path {
+			  fill: none;
+			  stroke: #000;
+
+			}
+
+			.y.axis line, .y.axis path {
+			  fill: none;
+			  stroke: #000;
+			}
+			
+			.plotLabel {
+				font-family: Georgia, serif;
+			}
+
+			body {
+				overflow: hidden;
+			}
+			
+
+
+		</style>
+
+	        <svg id="canvas">
+	        </svg>
+
+	<script>
+		/* implementation heavily influenced by http://bl.ocks.org/1166403 */
+		
+		// define dimensions of graph
+		var m = [80, 200, 80, 120]; // margins -- top, right, bottom, left
+		var w = 1200 - m[1] - m[3]; // width 1200
+		var h = 800 - m[0] - m[2]; // height
+		
+		var dataArray = [];
+		var cDataArray = []; // cumulative data array
+		var yearLabelArray = [];
+		i = 0;
+		
+		d3.json('inc/pubTimeData.json', function(error,jsonData) {
+
+			for(var year in jsonData.data) {
+				var yearInt = Number(year);
+				if(i == 0) {
+					yearLabelArray.push(year);
+					var total = jsonData.data[year].total;
+					dataArray.push(total);
+					cDataArray.push(total);
+				} else {
+					if(yearInt !== Number(yearLabelArray[yearLabelArray.length-1])+1) {
+						yearLabelArray.push((Number(yearLabelArray[yearLabelArray.length-1])+1).toString());
+						dataArray.push(0);
+						cDataArray.push(cDataArray[cDataArray.length-1])
+					} 
+					yearLabelArray.push(year);
+					var total = jsonData.data[year].total;
+					dataArray.push(total);
+					cDataArray.push(cDataArray[cDataArray.length-1]+total);
+					
+				}
+				i++;
+			}
+
+		// create a simple data array that we'll plot with a line (this array represents only the Y values, X will just be the index location)
+		var xAxisStart = Number(yearLabelArray[0]);
+		var xAxisEnd = Number(yearLabelArray[yearLabelArray.length-1]);
+		
+		var yearTickLabels = [];
+		yearLabelArray.forEach(function(y) {
+			yearTickLabels.push(Number(y));
+		});
+		// X scale will fit all values from data[] within pixels 0-w
+		var x = d3.scale.ordinal().domain(yearLabelArray).rangePoints([0, w]);
+
+
+
+		// create left yAxis
+		
+		var yMax, tickCount, y, increment;
+		var axisType = "both";
+		var yAxisLeft = function(axisType) {
+			switch(axisType) {
+				case "both":
+				case "cumulative":
+					increment = 50;
+					break;
+				case "annual":
+					increment = 10;
+					break;
+			}
+			yMax = function(axisType) {
+				if(axisType === "both" || axisType === "cumulative") {
+					if(d3.max(cDataArray)%(increment) != 0) {
+						return d3.max(cDataArray) + (increment - (d3.max(cDataArray)%(increment)));
+					} else {
+						return d3.max(cDataArray);
+					}
+				} else {
+					if(d3.max(dataArray)%(increment) != 0) {
+						return d3.max(dataArray) + (increment - (d3.max(dataArray)%(increment)));
+					} else {
+						return d3.max(dataArray);
+					}			
+				}
+			}
+			tickCount = yMax(axisType)/increment;
+
+			y = d3.scale.linear().domain([0, yMax(axisType)]).range([h, 0]);
+
+			return d3.svg.axis().scale(y).ticks(tickCount).orient("left");
+		}
+
+
+		// create a line function that can convert data[] into x and y points
+		var line = d3.svg.line()
+			// assign the X function to plot our line as we wish
+			.x(function(d,i) { 
+				// return the X coordinate where we want to plot this datapoint
+				return x(yearLabelArray[i]); 
+			})
+			.y(function(d) { 
+				// return the Y coordinate where we want to plot this datapoint
+				return y(d); 
+
+			})
+
+			var widthViewBox = w + m[1] + m[3];
+			var heightViewBox = h + m[0] + m[2]+100;
+
+			// Add an SVG element with the desired dimensions and margin.
+			var graph = d3.select("#canvas").append("svg:svg")
+            .attr("viewBox", -m[3] + " " + -m[0] + " " + widthViewBox + " " + heightViewBox)
+            .attr("preserveAspectRatio", "xMinYMin meet");
+
+			// create xAxis
+			var xAxis = d3.svg.axis().scale(x).tickSize(-h).tickSubdivide(true).orient("bottom");
+			// Add the x-axis.
+			graph.append("svg:g")
+			      .attr("class", "x axis")
+			      .attr("transform", "translate(0," + h + ")")
+			      .call(xAxis)
+ 				.selectAll("text")
+ 				.attr("class", "plotLabel")
+				.attr("y", 0)
+				.attr("x", 9)
+				.attr("dy", ".35em")
+				.attr("transform", "rotate(90)")
+				.style("text-anchor", "start");
+
+
+			// Add the y-axis to the left
+			var yAxisG = graph.append("svg:g")
+			      .attr("class", "y axis")
+			      .attr("transform", "translate(-25,0)")
+			      .call(yAxisLeft(axisType))
+			      .selectAll("text")
+			      .attr("class","plotLabel");
+			
+  			// Add the line by appending an svg:path element with the data line we created above
+			// do this AFTER the axes above so that the line is above the tick-lines
+
+  			var plotLine = graph.append("svg:path")
+  				.attr("d", line(dataArray))
+  				.style("stroke","steelblue")
+ 				.style("display","none");
+
+  				
+  			var cumulativePlotLine = graph.append("svg:path")
+  				.attr("d", line(cDataArray))
+  				.style("stroke","green")
+  				.style("stroke-width","2px")
+  				.style("display","none");
+  				
+  			var barPlot = graph.selectAll("bar.rect")
+  				.data(dataArray)
+  				.enter().append("rect")
+  				.attr("x", function(d,i) { return x(yearLabelArray[i])-10; })
+  				.attr("y",function(d) { return y(d);})
+  				.attr("width",20)
+  				.attr("height",function(d) { return h-y(d); })
+  				.attr("fill","steelblue");
+
+  			var cBarPlot = graph.selectAll("cBar.rect")
+  				.data(cDataArray)
+  				.enter().append("rect")
+  				.attr("x", function(d,i) { return x(yearLabelArray[i])-10; })
+  				.attr("y",function(d) { return y(d);})
+  				.attr("width",20)
+  				.attr("height",function(d,i) { return h-y(d)-(h-y(dataArray[i])) - 2; })
+  				.attr("fill","green");
+  				
+  			cBarPlot.append("text")
+  				.attr("dx",0)
+  				.attr("dy",0)
+  				.text(function(d) { return d; });
+  			
+			var title = graph.append("text")
+				.attr("class", "plotLabel")
+				.attr("x", (w/2))             
+				.attr("y", 0 - (m[0] / 2))
+				.attr("text-anchor", "middle")  
+				.style("font-size", "20px") 
+				.style("text-decoration", "none")
+				.style("font-weight","bold")  
+				.text("Publications with Cross-College Collaboration");
+
+			var yAxisLabel = graph.append("text")
+				.attr("class", "plotLabel")
+				.attr("x", -w/2+m[0])  
+				.attr("y", -85)
+				.attr("text-anchor", "start") 
+				.style("font-size", "15px") 
+				.style("text-decoration", "none")
+				.text("Number of Publications")
+				.attr("transform", "rotate(-90)");
+				
+  			var keyBox = graph.append("rect")
+  				.attr("x", w+25)
+				.attr("y",0)
+  				.attr("width",(m[1]-40))
+  				.attr("height",100)
+  				.attr("fill", "none")
+  				.attr("stroke","black");				
+
+			var keyLabel = graph.append("text")
+				.attr("class", "plotLabel")
+				.attr("x", w+25+(m[1]-40)/2)  
+				.attr("y", 20)
+				.attr("text-anchor", "middle") 
+				.style("font-size", "18px") 
+				.style("text-decoration", "none")
+				.style("font-weight","bold")
+				.text("Key");
+
+			var keyLabel_annual = graph.append("text")
+				.attr("class", "plotLabel")
+				.attr("x", w+25+40)  
+				.attr("y", 50)
+				.attr("text-anchor", "start") 
+				.style("font-size", "14px") 
+				.style("text-decoration", "none")
+				.text("Total for Year");
+
+  			var keyColor_annual = graph.append("rect")
+  				.attr("x", w+25+20)
+				.attr("y",40)
+  				.attr("width",10)
+  				.attr("height",10)
+  				.attr("fill", "steelblue")
+  				.attr("stroke","none")
+				.on("click", function() { graphScale("annual"); })
+				
+
+
+			var keyLabel_cumulative = graph.append("text")
+				.attr("class", "plotLabel")
+				.attr("x", w+25+40)  
+				.attr("y", 80)
+				.attr("text-anchor", "start") 
+				.style("font-size", "14px") 
+				.style("text-decoration", "none")
+				.text("Cumulative Total");
+
+  			var keyColor_cumulative = graph.append("rect")
+  				.attr("x", w+25+20)
+				.attr("y",70)
+  				.attr("width",10)
+  				.attr("height",10)
+  				.attr("fill", "green")
+  				.attr("stroke","none")
+				.on("click", function() { graphScale("cumulative"); });
+  								
+/////////////////////////////
+// Define Functions
+/////////////////////////////
+
+			function updateBars(axisType) {
+
+				switch(axisType) {
+					case "annual":			
+						barPlot.attr("y", function(d) {
+							return y(d);
+						});
+						barPlot.attr("height",function(d,i) { 
+							return h-y(d); 
+						});			
+						break;
+					case "cumulative":
+						cBarPlot.attr("y", function(d) {
+							return y(d);
+						});
+						cBarPlot.attr("height",function(d,i) { 
+							return h-y(d); 
+						});							
+						break;
+					case "both":
+						barPlot.attr("y", function(d) {
+							return y(d);
+						});
+						barPlot.attr("height",function(d,i) { 
+							return h-y(d); 
+						});			
+						cBarPlot.attr("y", function(d) {
+							return y(d);
+						});
+						cBarPlot.attr("height",function(d,i) { 
+							return h-y(d)-(h-y(dataArray[i])) - 2; 
+						});			
+					
+						break;
+				}			
+			}
+
+
+			function graphScale(keyLabel) {
+				if(keyLabel === "cumulative") {
+
+					if(keyColor_cumulative.attr("fill") == "green") {
+						keyColor_cumulative.attr("fill","white").attr("stroke","black");
+						cBarPlot.style("visibility","hidden");
+						d3.select(".y.axis").call(yAxisLeft("annual"));
+						if(keyColor_annual.attr("fill") == "steelblue") {
+							yAxisLeft("annual");
+							d3.select(".y.axis").call(yAxisLeft("annual"));		
+							updateBars("annual");
+						}
+
+					} else {
+						keyColor_cumulative.attr("fill","green");
+						cBarPlot.style("visibility","visible");
+						d3.select(".y.axis").call(yAxisLeft("cumulative"));
+						if(keyColor_annual.attr("fill") == "steelblue") {
+							d3.select(".y.axis").call(yAxisLeft("both"));	
+							updateBars("both");					
+						} else {
+							d3.select(".y.axis").call(yAxisLeft("cumulative"));
+							updateBars("cumulative");
+						}
+					}
+				}
+
+				if(keyLabel === "annual") {
+
+					if(keyColor_annual.attr("fill") == "steelblue") {
+						keyColor_annual.attr("fill","white").attr("stroke","black");
+						barPlot.style("visibility","hidden");
+						if(keyColor_cumulative.attr("fill") == "green") {
+							d3.select(".y.axis").call(yAxisLeft("cumulative"));		
+							updateBars("cumulative");				
+						}
+					} else {
+						keyColor_annual.attr("fill","steelblue");
+						barPlot.style("visibility","visible");
+						d3.select(".y.axis").call(yAxisLeft("single"));
+						if(keyColor_cumulative.attr("fill") == "green") {
+							d3.select(".y.axis").call(yAxisLeft("both"));		
+							updateBars("both");				
+						} else {
+							d3.select(".y.axis").call(yAxisLeft("annual"));
+							updateBars("annual");
+						}
+						
+					}
+				}
+
+			}
+
+		});
+
+	</script>
